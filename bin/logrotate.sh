@@ -1,7 +1,6 @@
 #!/bin/sh
 
-BASE="/opt/var/log"
-ARCHIVE="$BASE/archives"
+ARCHIVE="/opt/var/log/archives"
 
 # Get date components
 YEAR=$(date +%Y)
@@ -14,8 +13,8 @@ DEST="$ARCHIVE/$YEAR/$MONTH/$DAY"
 # Ensure archive directory exists
 mkdir -p "$DEST"
 
-# Move only regular files (skip directories)
-for f in "$BASE"/*; do
+# Move /var/log/messages and /var/log/messages.0 if they exist
+for f in /var/log/messages /var/log/messages.0; do
     [ -f "$f" ] || continue
     mv "$f" "$DEST"/
 done
