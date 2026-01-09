@@ -9,12 +9,18 @@ DAY=$(date +%d)
 
 # Build archive path
 DEST="$ARCHIVE/$YEAR/$MONTH/$DAY"
-
-# Ensure archive directory exists
 mkdir -p "$DEST"
 
-# Move /opt/var/log/messages and /opt/var/log/messages.0 if they exist
+# Append logs instead of overwriting
 for f in /opt/var/log/messages /opt/var/log/messages.0; do
     [ -f "$f" ] || continue
-    mv "$f" "$DEST"/
+
+    base=$(basename "$f")
+    destfile="$DEST/$base"
+
+    # Append contents
+    cat "$f" >> "$destfile"
+
+    # Remove original so syslogd can recreate it
+    rm -f "$f"
 done
