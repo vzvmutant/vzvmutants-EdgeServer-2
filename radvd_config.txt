@@ -1,0 +1,15 @@
+interface br0 {
+    AdvSendAdvert on;
+
+    prefix fd10:002A:0001::/64 {
+        AdvOnLink on;
+        AdvAutonomous on;
+        AdvValidLifetime 86400;      # 1 day
+        AdvPreferredLifetime 14400;  # 4 hours
+    };
+
+    # RDNSS using IPv4-embedded IPv6 address for 10.42.0.1
+    RDNSS fd10:2a:1::a2a:1 {
+        AdvRDNSSLifetime 3600;       # 1 hour
+    };
+};
