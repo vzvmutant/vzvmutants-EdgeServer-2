@@ -1,14 +1,18 @@
 #!/bin/sh
 
 ### Modular iptables/ip6tables Firewall for DD-WRT ###
-### Corrected + DD-WRT-safe version ###
+### Router: Edgie_McEdgeface | Host: Singularities_edge | Domain: vzvmutants.damnserver.com ###
+
+ROUTER_NAME="Edgie_McEdgeface"
+HOSTNAME="Singularities_edge"
+DOMAIN="vzvmutants.damnserver.com"
 
 ## Wait for /opt to be available
- i=0
-  while [ ! -d /opt ] && [ $i -lt 30 ]; do
-     sleep 1
+i=0
+while [ ! -d /opt ] && [ $i -lt 30 ]; do
+    sleep 1
     i=$((i+1))
- done
+done
 
 # Capture WAN interface safely
 WAN="$(get_wanface)"
@@ -37,10 +41,6 @@ ip6tables -P OUTPUT ACCEPT
 
 ### Noise filter ###
 iptables -N NOISE_DROP 2>/dev/null
-
-# Example placeholder ranges (user should fill real networks)
-# iptables -A NOISE_DROP -s 203.0.113.0/24 -j DROP
-# iptables -A NOISE_DROP -s 198.51.100.0/24 -j DROP
 
 iptables -I INPUT -j NOISE_DROP
 iptables -I FORWARD -j NOISE_DROP
@@ -71,24 +71,51 @@ iptables -A FORWARD -p 2 -j DROP
 
 ### IP set handling ###
 iptables -A INPUT -m set --match-set badactors src \
-    -m limit --limit 1/min -j LOG --log-prefix "IPSET DROP: " --log-level 4
+    -m limit --limit 1/min \
+    -j LOG --log-prefix "$ROUTER_NAME IPSET DROP: " --log-level 4
 
 iptables -A INPUT -m set --match-set badactors src -j DROP
 
 ### LAN → Router (management, DNS, DHCP) ###
-iptables -A INPUT -i br0 -p udp --dport 67:68 -j ACCEPT   # DHCP
-iptables -A INPUT -i br0 -p udp --dport 53 -j ACCEPT      # DNS
-iptables -A INPUT -i br0 -p tcp --dport 53 -j ACCEPT      # DNS
+iptables -A INPUT -i br0 -p udp --dport 67:68 \
+    -m comment --comment "DHCP to $HOSTNAME.$DOMAIN" -j ACCEPT
 
-iptables -A INPUT -i br0 -p tcp --dport 443 -j ACCEPT     # Web UI SSL
-iptables -A INPUT -i br0 -p tcp --dport 2222 -j ACCEPT    # SSH (corrected)
+iptables -A INPUT -i br0 -p udp --dport 53 \
+    -m comment --comment "DNS (UDP) to $HOSTNAME.$DOMAIN" -j ACCEPT
 
-### IPv6 LAN → Router ###
-ip6tables -A INPUT -s fd10:002A:0001::/64 -j ACCEPT
+iptables -A INPUT -i br0 -p tcp --dport 53 \
+    -m comment --comment "DNS (TCP) to $HOSTNAME.$DOMAIN" -j ACCEPT
+
+iptables -A INPUT -i br0 -p tcp --dport 443 \
+    -m comment --comment "HTTPS admin to $ROUTER_NAME" -j ACCEPT
+
+iptables -A INPUT -i br0 -p tcp --dport 2222 \
+    -m comment --comment "SSH to $ROUTER_NAME" -j ACCEPT
+
+### IPv6 LAN → Router (ULA fd10:42:0:1::/64) ###
+ip6tables -A INPUT -i br0 -s fd10:42:0:1::/64 \
+    -m comment --comment "IPv6 LAN ULA to $HOSTNAME.$DOMAIN" -j ACCEPT
+
+# IPv6 DNS
+ip6tables -A INPUT -i br0 -p udp --dport 53 \
+    -m comment --comment "IPv6 DNS (UDP) to $HOSTNAME.$DOMAIN" -j ACCEPT
+
+ip6tables -A INPUT -i br0 -p tcp --dport 53 \
+    -m comment --comment "IPv6 DNS (TCP) to $HOSTNAME.$DOMAIN" -j ACCEPT
+
+# IPv6 HTTPS + SSH
+ip6tables -A INPUT -i br0 -p tcp --dport 443 \
+    -m comment --comment "IPv6 HTTPS admin to $ROUTER_NAME" -j ACCEPT
+
+ip6tables -A INPUT -i br0 -p tcp --dport 2222 \
+    -m comment --comment "IPv6 SSH to $ROUTER_NAME" -j ACCEPT
 
 ### LAN → WAN forwarding + NAT ###
-iptables -A FORWARD -i br0 -o "$WAN" -j ACCEPT
-iptables -t nat -A POSTROUTING -o "$WAN" -j MASQUERADE
+iptables -A FORWARD -i br0 -o "$WAN" \
+    -m comment --comment "LAN → WAN forwarding" -j ACCEPT
+
+iptables -t nat -A POSTROUTING -o "$WAN" \
+    -m comment --comment "NAT masquerade" -j MASQUERADE
 
 ### MTU / MSS Clamping ###
 iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN \
@@ -98,7 +125,7 @@ iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN \
     -i "$WAN" -j TCPMSS --clamp-mss-to-pmtu
 
 ip6tables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN \
- -o "$WAN" -j TCPMSS --clamp-mss-to-pmtu
+    -o "$WAN" -j TCPMSS --clamp-mss-to-pmtu
 
 ip6tables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN \
     -i "$WAN" -j TCPMSS --clamp-mss-to-pmtu
@@ -121,11 +148,14 @@ iptables -A SYN_SCAN_DROP -j CONNMARK --set-mark 0x1
 iptables -A SYN_SCAN_DROP -j DROP
 
 # Log/drop inbound 443 traffic
-iptables -A INPUT -i "$WAN" -p tcp --sport 443 -j LOGGING
-iptables -A INPUT -i "$WAN" -p udp --sport 443 -j LOGGING
+iptables -A INPUT -i "$WAN" -p tcp --sport 443 \
+    -j LOGGING
+
+iptables -A INPUT -i "$WAN" -p udp --sport 443 \
+    -j LOGGING
 
 iptables -A LOGGING -m limit --limit 2/min --limit-burst 5 \
-    -j LOG --log-prefix "DROP: " --log-level 4
+    -j LOG --log-prefix "$ROUTER_NAME DROP: " --log-level 4
 
 iptables -A LOGGING -j DROP
 
@@ -151,6 +181,6 @@ ip6tables -A INPUT -p ipv6-icmp -j ACCEPT
 
 ### Catch-all logging ###
 iptables -A INPUT -m limit --limit 5/min \
-    -j LOG --log-prefix "IPv4 DROP: " --log-level 4
+    -j LOG --log-prefix "$ROUTER_NAME IPv4 DROP: " --log-level 4
 
 iptables -A INPUT -j DROP
