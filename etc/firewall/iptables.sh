@@ -61,7 +61,7 @@ iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# Drop invalid packets
+# Drop invalid packets                                              PT
 iptables -A INPUT -m state --state INVALID -j DROP
 ip6tables -A INPUT -m state --state INVALID -j DROP
 
@@ -75,7 +75,7 @@ iptables -A INPUT -m set --match-set badactors src \
     -j LOG --log-prefix "$ROUTER_NAME IPSET DROP: " --log-level 4
 
 iptables -A INPUT -m set --match-set badactors src -j DROP
-
+                                                            PT
 ### LAN → Router (management, DNS, DHCP) ###
 iptables -A INPUT -i br0 -p udp --dport 67:68 \
     -m comment --comment "DHCP to $HOSTNAME.$DOMAIN" -j ACCEPT
@@ -182,5 +182,3 @@ ip6tables -A INPUT -p ipv6-icmp -j ACCEPT
 ### Catch-all logging ###
 iptables -A INPUT -m limit --limit 5/min \
     -j LOG --log-prefix "$ROUTER_NAME IPv4 DROP: " --log-level 4
-
-iptables -A INPUT -j DROP
