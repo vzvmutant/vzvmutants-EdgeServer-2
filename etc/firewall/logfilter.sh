@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# FIFO for intercepting syslog stream
 FIFO="/opt/var/log/syslog.pipe"
 OUT="/opt/var/log/messages"
 
@@ -14,79 +13,99 @@ OUT="/opt/var/log/messages"
 while read -r line; do
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 1:
-    #  Drop "br0: received packet on vlan3 with own address as source address"
+    # FILTER RULE 1: vlan3 self-address noise
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "received packet on vlan3 with own address as source address"
-    if [ $? -eq 0 ]; then
-        continue
-    fi
+    case "$line" in
+        *"received packet on vlan3 with own address as source address"*)
+            continue
+        ;;
+    esac
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 2:
-    #  Drop OpenVPN noise
+    # FILTER RULE 2: OpenVPN noise
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "openvpn" && {
-        echo "$line" | grep -q "VERIFY OK" && continue
-        echo "$line" | grep -q "WARNING: 'link-mtu' is used inconsistently" && continue
-        echo "$line" | grep -q "WARNING: 'auth' is used inconsistently" && continue
-        echo "$line" | grep -q "WARNING: 'keysize' is used inconsistently" && continue
-        echo "$line" | grep -q "Outgoing Data Channel: Cipher" && continue
-        echo "$line" | grep -q "Incoming Data Channel: Cipher" && continue
-        echo "$line" | grep -q "Control Channel: TLSv1.3" && continue
-    }
+    case "$line" in
+        *openvpn*)
+            case "$line" in
+                *"VERIFY OK"* ) continue ;;
+                *"WARNING: 'link-mtu' is used inconsistently"* ) continue ;;
+                *"WARNING: 'auth' is used inconsistently"* ) continue ;;
+                *"WARNING: 'keysize' is used inconsistently"* ) continue ;;
+                *"Outgoing Data Channel: Cipher"* ) continue ;;
+                *"Incoming Data Channel: Cipher"* ) continue ;;
+                *"Control Channel: TLSv1.3"* ) continue ;;
+            esac
+        ;;
+    esac
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 3:
-    #  Drop ntpclient chatter
+    # FILTER RULE 3: ntpclient chatter
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "ntpclient" && {
-        echo "$line" | grep -q "Connecting to" && continue
-        echo "$line" | grep -q "Timed out waiting for" && continue
-        echo "$line" | grep -q "Time set from" && continue
-    }
+    case "$line" in
+        *ntpclient*)
+            case "$line" in
+                *"Connecting to"* ) continue ;;
+                *"Timed out waiting for"* ) continue ;;
+                *"Time set from"* ) continue ;;
+            esac
+        ;;
+    esac
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 4:
-    #  Drop process_monitor NTP success spam
+    # FILTER RULE 4: process_monitor NTP spam
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "process_monitor" && {
-        echo "$line" | grep -q "cyclic NTP Update success" && continue
-    }
+    case "$line" in
+        *process_monitor*)
+            case "$line" in
+                *"cyclic NTP Update success"* ) continue ;;
+            esac
+        ;;
+    esac
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 5:
-    #  Drop dnscrypt-proxy certificate rotation noise
+    # FILTER RULE 5: dnscrypt-proxy certificate rotation noise
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "dnscrypt-proxy" && {
-        echo "$line" | grep -q "Refetching server certificates" && continue
-        echo "$line" | grep -q "Server certificate with serial" && continue
-        echo "$line" | grep -q "This certificate is valid" && continue
-        echo "$line" | grep -q "Chosen certificate" && continue
-        echo "$line" | grep -q "key rotation period" && continue
-    }
+    case "$line" in
+        *dnscrypt-proxy*)
+            case "$line" in
+                *"Refetching server certificates"* ) continue ;;
+                *"Server certificate with serial"* ) continue ;;
+                *"This certificate is valid"* ) continue ;;
+                *"Chosen certificate"* ) continue ;;
+                *"key rotation period"* ) continue ;;
+            esac
+        ;;
+    esac
 
     # ------------------------------------------------------------------
-    #  FILTER RULE 6:
-    #  Drop dnsmasq startup chatter
+    # FILTER RULE 6: dnsmasq startup/shutdown chatter
     # ------------------------------------------------------------------
-    echo "$line" | grep -q "dnsmasq" && {
-        echo "$line" | grep -q "DNSSEC validation enabled" && continue
-        echo "$line" | grep -q "configured with trust anchor for <root>" && continue
-        echo "$line" | grep -q "ignoring resolv-file flag" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain test" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain onion" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain localhost" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain local" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain invalid" && continue
-        echo "$line" | grep -q "using only locally-known addresses for domain bind" && continue
-        echo "$line" | grep -q "using nameserver 127.0.0.1#30" && continue
-        echo "$line" | grep -q "read /etc/hosts" && continue
-        echo "$line" | grep -q "read /tmp/blocking_hosts/hosts05" && continue
-        echo "$line" | grep -q "read /tmp/blocking_hosts/hosts02" && continue
-    }
+    case "$line" in
+        *dnsmasq*)
+            case "$line" in
+                *"exiting on receipt of SIGTERM"* ) continue ;;
+                *"started, version"* ) continue ;;
+                *"compile time options:"* ) continue ;;
+                *"DNSSEC validation enabled"* ) continue ;;
+                *"configured with trust anchor for <root>"* ) continue ;;
+                *"ignoring resolv-file flag"* ) continue ;;
+                *"using only locally-known addresses for domain test"* ) continue ;;
+                *"using only locally-known addresses for domain onion"* ) continue ;;
+                *"using only locally-known addresses for domain localhost"* ) continue ;;
+                *"using only locally-known addresses for domain local"* ) continue ;;
+                *"using only locally-known addresses for domain invalid"* ) continue ;;
+                *"using only locally-known addresses for domain bind"* ) continue ;;
+                *"using nameserver 127.0.0.1#30"* ) continue ;;
+                *"read /etc/hosts"* ) continue ;;
+                *"read /tmp/blocking_hosts/hosts05"* ) continue ;;
+                *"read /tmp/blocking_hosts/hosts02"* ) continue ;;
+            esac
+        ;;
+    esac
 
-    # If not filtered, write to real log
+    # ------------------------------------------------------------------
+    # Write unfiltered line to log
+    # ------------------------------------------------------------------
     echo "$line" >> "$OUT"
 
 done < "$FIFO"
